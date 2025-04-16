@@ -41,15 +41,13 @@
 <body>
     <canvas id="basketballCanvas"></canvas>
     <div class="toolbar">
-        <label>TOP FACE: <span id="topFaceValue">1</span></label>
-        <input type="range" id="topFace" min="1" max="10" value="1" oninput="updateShootParams('topFace', this.value)">
-        <label>FORCE: <span id="forceValue">50%</span></label>
-        <input type="range" id="force" min="0" max="100" value="50" oninput="updateShootParams('force', this.value)">
-        <label>YAW: <span id="yawValue">0°</span></label>
-        <input type="range" id="yaw" min="-90" max="90" value="0" oninput="updateShootParams('yaw', this.value)">
-        <label>PITCH: <span id="pitchValue">0°</label>
-        <input type="range" id="pitch" min="-90" max="90" value="0" oninput="updateShootParams('pitch', this.value)">
-        <button onclick="shootBall()">SHOOT</button>
+
+		<label>Power: <span id="powerValue">12.0</span></label> 
+		<input type="range" id="power" min="1" max="30" value="12" step="0.1" oninput="updateShootParams('power', this.value)">
+		<label>Vector Z: <span id="vecZValue">-15.0</span></label> 
+		<input type="range" id="vecZ" min="-30" max="0" value="-15" step="0.1" oninput="updateShootParams('vecZ', this.value)">	
+        <button onclick="shootBall()">Shoot!</button>
+        <button onclick="resetBall()">Reset Ball</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -111,13 +109,14 @@ function initBasketballSim() {
 
     // Load textures
     const textureLoader = new THREE.TextureLoader();
-    const floorTexture = textureLoader.load('FloorTexture.jpg');
+    const floorTexture = textureLoader.load('https://vita2048.github.io/BasketballSimulator/FloorTexture.jpg');
     floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
     floorTexture.repeat.set(4, 4);
 
-    const wallTexture = textureLoader.load('WallTexture.jpg');
-    wallTexture.wrapS = wallTexture.wrapT = THREE.RepeatWrapping;
-    wallTexture.repeat.set(2, 2);
+    const wallTexture = textureLoader.load('https://vita2048.github.io/BasketballSimulator/WallTexture.jpg');
+    //wallTexture.wrapS = wallTexture.wrapT = THREE.ClampToEdgeWrapping;
+	//wallTexture.wrapS = wallTexture.wrapT = THREE.RepeatWrapping;
+    //wallTexture.repeat.set(2, 2);
 
     // Floor
     const floorGeometry = new THREE.PlaneGeometry(40, 40);
@@ -145,17 +144,46 @@ function initBasketballSim() {
         map: wallTexture,
         side: THREE.DoubleSide
     });
-    const wallMesh = new THREE.Mesh(wallGeometry, wallMeshMaterial);
-    wallMesh.position.set(0, 10, wallZPosition);
-    wallMesh.castShadow = true;
-    wallMesh.receiveShadow = true;
-    scene.add(wallMesh);
+    const backWallMesh = new THREE.Mesh(wallGeometry, wallMeshMaterial);
+    backWallMesh.position.set(0, 10, wallZPosition);
+    backWallMesh.castShadow = true;
+    backWallMesh.receiveShadow = true;
+    scene.add(backWallMesh);
 
-    const wallShape = new CANNON.Plane();
-    const wallBody = new CANNON.Body({ mass: 0, shape: wallShape, material: wallMaterial });
-    wallBody.position.set(0, 10, wallZPosition);
-    wallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2);
-    world.addBody(wallBody);
+    const backWallShape = new CANNON.Plane();
+    const backWallBody = new CANNON.Body({ mass: 0, shape: backWallShape, material: wallMaterial });
+    // Set the position ONLY, no incorrect rotation needed here
+    backWallBody.position.set(0, 10, wallZPosition);
+    // backWallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), Math.PI / 2); // <-- REMOVE OR COMMENT OUT THIS LINE
+    world.addBody(backWallBody);
+
+    // Left Wall
+    const leftWallMesh = new THREE.Mesh(wallGeometry, wallMeshMaterial);
+    leftWallMesh.position.set(-20, 10, 0);
+    leftWallMesh.rotation.y = Math.PI / 2;
+    leftWallMesh.castShadow = true;
+    leftWallMesh.receiveShadow = true;
+    scene.add(leftWallMesh);
+
+    const leftWallShape = new CANNON.Plane();
+    const leftWallBody = new CANNON.Body({ mass: 0, shape: leftWallShape, material: wallMaterial });
+    leftWallBody.position.set(-20, 10, 0);
+    leftWallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Math.PI / 2);
+    world.addBody(leftWallBody);
+
+    // Right Wall
+    const rightWallMesh = new THREE.Mesh(wallGeometry, wallMeshMaterial);
+    rightWallMesh.position.set(20, 10, 0);
+    rightWallMesh.rotation.y = -Math.PI / 2;
+    rightWallMesh.castShadow = true;
+    rightWallMesh.receiveShadow = true;
+    scene.add(rightWallMesh);
+
+    const rightWallShape = new CANNON.Plane();
+    const rightWallBody = new CANNON.Body({ mass: 0, shape: rightWallShape, material: wallMaterial });
+    rightWallBody.position.set(20, 10, 0);
+    rightWallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -Math.PI / 2);
+    world.addBody(rightWallBody);
 
     // Basketball Hoop
     const hoopGroup = new THREE.Group();
@@ -250,33 +278,33 @@ function initBasketballSim() {
     scene.add(aimingArrow);
 
     const shootParams = {
-        topFace: 1,
-        force: 50,
-        yaw: 0,
-        pitch: 0
+        vecY: 10,
+        vecZ: -15,
+        power: 12
     };
 
-    function resetBall() {
-        ballBody.velocity.set(0, 0, 0);
-        ballBody.angularVelocity.set(0, 0, 0);
-        ballBody.position.copy(initialBallPosition);
-        ballMesh.position.copy(initialBallPosition);
-        aimingArrow.visible = true;
-    }
+	window.resetBall = function() {
+		ballBody.velocity.set(0, 0, 0);
+		ballBody.angularVelocity.set(0, 0, 0);
+		ballBody.position.copy(initialBallPosition);
+		ballMesh.position.copy(initialBallPosition);
+		aimingArrow.visible = true;
+
+		// Format the displayed values to one decimal place on reset
+		document.getElementById('powerValue').textContent = shootParams.power.toFixed(1);
+		document.getElementById('vecZValue').textContent = shootParams.vecZ.toFixed(1);
+
+		// Set the slider values (the browser handles the step value here)
+		document.getElementById('power').value = shootParams.power;
+		document.getElementById('vecZ').value = shootParams.vecZ;
+
+		updateAimingArrow();
+	};
     resetBall();
 
     function updateAimingArrow() {
-        const yawRad = THREE.MathUtils.degToRad(shootParams.yaw);
-        const pitchRad = THREE.MathUtils.degToRad(shootParams.pitch);
-        const force = shootParams.force * 0.3;
-
-        const direction = new THREE.Vector3(
-            Math.sin(yawRad) * Math.cos(pitchRad),
-            Math.sin(pitchRad),
-            -Math.cos(yawRad) * Math.cos(pitchRad)
-        ).normalize();
-
-        const length = Math.min(force / 5, 5);
+        const direction = new THREE.Vector3(0, shootParams.vecY, shootParams.vecZ).normalize();
+        const length = Math.min(shootParams.power / 5, 5);
         const originOffset = direction.clone().multiplyScalar(ballRadius * 1.1);
         const arrowOrigin = ballMesh.position.clone().add(originOffset);
 
@@ -287,33 +315,23 @@ function initBasketballSim() {
     }
     updateAimingArrow();
 
-    window.updateShootParams = function(param, value) {
-        shootParams[param] = parseFloat(value);
-        document.getElementById(`${param}Value`).textContent = 
-            param === 'force' ? `${value}%` :
-            param === 'yaw' || param === 'pitch' ? `${value}°` :
-            value;
-        updateAimingArrow();
-    };
+	window.updateShootParams = function(param, value) {
+		const floatValue = parseFloat(value); // Ensure it's a number
+		shootParams[param] = floatValue;
+		// Format the displayed value to one decimal place
+		document.getElementById(`${param}Value`).textContent = floatValue.toFixed(1);
+		updateAimingArrow();
+	};
 
     window.shootBall = function() {
         if (!ballBody) return;
         aimingArrow.visible = false;
 
-        const yawRad = THREE.MathUtils.degToRad(shootParams.yaw);
-        const pitchRad = THREE.MathUtils.degToRad(shootParams.pitch);
-        const force = shootParams.force * 0.3;
-
-        const shootDirection = new THREE.Vector3(
-            Math.sin(yawRad) * Math.cos(pitchRad),
-            Math.sin(pitchRad),
-            -Math.cos(yawRad) * Math.cos(pitchRad)
-        ).normalize();
-
+        const shootDirection = new THREE.Vector3(0, shootParams.vecY, shootParams.vecZ).normalize();
         const impulse = new CANNON.Vec3(
-            shootDirection.x * force,
-            shootDirection.y * force,
-            shootDirection.z * force
+            shootDirection.x * shootParams.power,
+            shootDirection.y * shootParams.power,
+            shootDirection.z * shootParams.power
         );
 
         const worldPoint = new CANNON.Vec3(
@@ -322,9 +340,44 @@ function initBasketballSim() {
             ballBody.position.z
         );
         ballBody.applyImpulse(impulse, worldPoint);
-
-        setTimeout(resetBall, 3000);
     };
+
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+
+    canvas.addEventListener('mousedown', (event) => {
+        if (event.button === 0) {
+            isDragging = true;
+            previousMousePosition = { x: event.clientX, y: event.clientY };
+        }
+    });
+
+    canvas.addEventListener('mousemove', (event) => {
+        if (!isDragging) return;
+
+        const deltaMove = {
+            x: event.clientX - previousMousePosition.x,
+            y: event.clientY - previousMousePosition.y
+        };
+
+        const sensitivityY = -0.05;
+        shootParams.vecY += deltaMove.y * sensitivityY;
+        shootParams.vecY = Math.max(0, Math.min(30, shootParams.vecY));
+
+        document.getElementById('powerValue').textContent = shootParams.power;
+        document.getElementById('vecZValue').textContent = shootParams.vecZ;
+        updateAimingArrow();
+        previousMousePosition = { x: event.clientX, y: event.clientY };
+    });
+
+    canvas.addEventListener('mouseup', (event) => {
+        if (event.button === 0 && isDragging) {
+            isDragging = false;
+            shootBall();
+        }
+    });
+
+    canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 
     const clock = new THREE.Clock();
     let oldElapsedTime = 0;
